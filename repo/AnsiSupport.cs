@@ -1,80 +1,35 @@
-using System.Text;
-
+using System.Runtime.InteropServices;
 namespace Conwey
 {
-    internal class Program
+
+    static class AnsiSupport
     {
-        static string Color(int c)
-        {
-            return c switch
-            {
-                0 => "\x1b[31m",
-                1 => "\x1b[30m",
-                _ => "\x1b[92m"
-            };
-        }
-        static bool WindowChanged()
-        {
-            int width = Console.WindowWidth;
-            int height = Console.WindowHeight;
+        private const int STD_OUTPUT_HANDLE = -11;
+        private const uint ENABLE_VIRTUAL_TERMINAL_PROCESSING = 0x0004;
 
-            if (width != previousWidth || height != previousHeight)
-            {
-                previousWidth = width;
-                previousHeight = height;
+        [DllImport("kernel32.dll")]
+        private static extern IntPtr GetStdHandle(int nStdHandle);
 
-                Console.Write("\x1b[2J\x1b[H");
-                return true;
-            }
+        [DllImport("kernel32.dll")]
+        private static extern bool GetConsoleMode(
+            IntPtr hConsoleHandle,
+            out uint lpMode);
 
-            return false;
-        }
-        static int previousWidth = Console.WindowWidth;
-        static int previousHeight = Console.WindowHeight;
-        static void Main(string[] args)
+        [DllImport("kernel32.dll")]
+        private static extern bool SetConsoleMode(
+            IntPtr hConsoleHandle,
+            uint dwMode);
+
+        public static bool Enable()
         {
-            if (!AnsiSupport.Enable())
-            {
-                Console.WriteLine("ANSI support could not be enabled.");
-                return;
-            }
-            int x = 50;
-            int y = 50;
-            Game Conway = new(x, y);
-            Conway.Init();
-            int w = Conway.Field.GetLength(0);
-            int h = Conway.Field.GetLength(1);
-            StringBuilder output = new();
-            while (true)
-            {
-                WindowChanged();
-                int col = Math.Max(1, (Console.WindowWidth - w * 2) / 2 + 1);
-                int row = Math.Max(1, (Console.WindowHeight - h) / 2 + 1);
-                for (int i = 0; i < w; i++)
-                {
-                    output.Append($"\x1b[{row+i};{col}H");
-                    for (int j = 0; j < h; j++)
-                    {
-                        if (Conway.Field[i, j].Status != 0)
-                        {
-                            Conway.Field[i, j].GetNeighbours(Conway.Field);
-                        }
-                        output.Append($"{Color(Conway.Field[i, j].Status)}{Conway.Field[i, j].Status.ToString()} ");
-                    }
-                    output.AppendLine();
-                }
-                Console.Write(output.ToString());
-                output.Clear();
-                for (int i = 1; i < w-1; i++)
-                {
-                    for (int j = 1; j < h-1; j++)
-                    {
-                        Conway.Field[i,j].GetNeighbours(Conway.Field);
-                    }
-                }
-                Conway.Step();
-                Thread.Sleep(500);
-            }
+            IntPtr handle = GetStdHandle(STD_OUTPUT_HANDLE);
+
+            if (!GetConsoleMode(handle, out uint mode))
+                return false;
+
+            return SetConsoleMode(
+                handle,
+                mode | ENABLE_VIRTUAL_TERMINAL_PROCESSING);
         }
     }
 }
